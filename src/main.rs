@@ -1,6 +1,3 @@
-extern crate walkdir;
-use walkdir::WalkDir;
-
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -10,6 +7,8 @@ use std::process::exit;
 extern crate checksum;
 use checksum::crc::Crc as crc;
 
+extern crate walkdir;
+use walkdir::WalkDir;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -86,7 +85,7 @@ fn main() {
 
     let mut vec: Vec<String> = Vec::new();
 
-    for entry in WalkDir::new(old_dir).into_iter().filter_map(Result::ok).filter(|e| !e.file_type().is_file()) {
+    for entry in WalkDir::new(old_dir).into_iter().filter_map(Result::ok).filter(|e| e.file_type().is_dir()) {
         let f_name = String::from(entry.path().to_string_lossy());
 
         vec.push(f_name.clone());

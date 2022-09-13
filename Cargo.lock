@@ -10,7 +10,7 @@ checksum = "d5c24f6a463e9973db3df3c2cc276f689f5baf289c87a693dc859e004d3eb45f"
 
 [[package]]
 name = "remove-duplicate"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "checksum",
  "walkdir",
