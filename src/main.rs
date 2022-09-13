@@ -1,14 +1,15 @@
 use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
 use std::env;
+use std::fs;
+use std::fs::File;
+use std::io::prelude::*;
+use std::path::Path;
 use std::process::exit;
-
-extern crate checksum;
-use checksum::crc::Crc as crc;
 
 extern crate walkdir;
 use walkdir::WalkDir;
+
+extern crate crc32fast;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -37,22 +38,82 @@ fn main() {
     let mut filenames1 = HashMap::new();
     let mut filenames2 = HashMap::new();
 
-    for entry in WalkDir::new(new_dir).into_iter().filter_map(Result::ok).filter(|e| !e.file_type().is_dir()) {
+    for entry in WalkDir::new(new_dir)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| !e.file_type().is_dir() && !e.file_type().is_symlink())
+    {
+        let mut count: usize = 0;
+        let mut buffer = [0; 65536];
+
         let f_name = String::from(entry.path().to_string_lossy());
-        let mut crc = crc::new(f_name.as_str());
 
-        let crc32 = crc.checksum().expect("error").crc32;
+        let f = File::open(f_name.as_str());
 
-        filenames1.entry(f_name.clone().replace(new_dir, "")).or_insert(format!("{:X}", crc32));
+        let status = match f {
+            Ok(f) => Ok(f),
+            Err(e) => Err(e),
+        };
+
+        if status.is_ok() && Path::new(&f_name).is_file() && !Path::new(&f_name).is_symlink() {
+            for byte in status.unwrap().bytes() {
+                if count < 65536 {
+                    buffer[count] = byte.unwrap();
+                    count += 1;
+                } else {
+                    break;
+                }
+            }
+        } else {
+            eprintln!("Filepath {} Error {:#?}", f_name, status.err());
+            buffer[0] = u8::from(0);
+        }
+
+        let checksum = crc32fast::hash(&buffer);
+
+        filenames1
+            .entry(f_name.clone().replace(new_dir, ""))
+            .or_insert(format!("{:X}", checksum));
     }
 
-    for entry in WalkDir::new(old_dir).into_iter().filter_map(Result::ok).filter(|e| !e.file_type().is_dir()) {
+    for entry in WalkDir::new(old_dir)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| !e.file_type().is_dir() && !e.file_type().is_symlink())
+    {
+        let mut count: usize = 0;
+        let mut buffer = [0; 65536];
+
         let f_name = String::from(entry.path().to_string_lossy());
-        let mut crc = crc::new(f_name.as_str());
 
-        let crc32 = crc.checksum().expect("error").crc32;
+        let f = File::open(f_name.as_str());
 
-        filenames2.entry(f_name.clone().replace(old_dir, "")).or_insert(format!("{:X}", crc32));
+        let status = match f {
+            Ok(f) => Ok(f),
+            Err(e) => Err(e),
+        };
+
+        if status.is_ok() && Path::new(&f_name).is_file() {
+            for byte in status.unwrap().bytes() {
+                if count < 65536 {
+                    buffer[count] = byte.unwrap();
+                    count += 1;
+                } else {
+                    break;
+                }
+            }
+        } else {
+            eprintln!("Filepath {} Error {:#?}", f_name, status.err());
+            buffer[0] = u8::from(0);
+        }
+
+        let checksum = crc32fast::hash(&buffer);
+
+        filenames2
+            .entry(f_name.clone().replace(old_dir, ""))
+            .or_insert(format!("{:X}", checksum));
     }
 
     for file1 in filenames1 {
@@ -85,7 +146,12 @@ fn main() {
 
     let mut vec: Vec<String> = Vec::new();
 
-    for entry in WalkDir::new(old_dir).into_iter().filter_map(Result::ok).filter(|e| e.file_type().is_dir()) {
+    for entry in WalkDir::new(old_dir)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_dir())
+    {
         let f_name = String::from(entry.path().to_string_lossy());
 
         vec.push(f_name.clone());
