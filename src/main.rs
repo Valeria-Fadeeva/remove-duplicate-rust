@@ -38,6 +38,8 @@ fn main() {
     let mut filenames1 = HashMap::new();
     let mut filenames2 = HashMap::new();
 
+    println!("Walking {}", &new_dir);
+
     for entry in WalkDir::new(new_dir)
         .follow_links(false)
         .into_iter()
@@ -75,7 +77,11 @@ fn main() {
         filenames1
             .entry(f_name.clone().replace(new_dir, ""))
             .or_insert(format!("{:X}", checksum));
+
+        println!("{} {}", &checksum, &f_name);
     }
+
+    println!("Walking {}", &old_dir);
 
     for entry in WalkDir::new(old_dir)
         .follow_links(false)
@@ -114,6 +120,8 @@ fn main() {
         filenames2
             .entry(f_name.clone().replace(old_dir, ""))
             .or_insert(format!("{:X}", checksum));
+
+        println!("{} {}", &checksum, &f_name);
     }
 
     for file1 in filenames1 {
