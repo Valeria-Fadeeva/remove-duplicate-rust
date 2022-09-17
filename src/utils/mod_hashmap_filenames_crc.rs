@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
-use std::path::Path;
 
 extern crate walkdir;
 use walkdir::WalkDir;
@@ -18,7 +17,7 @@ pub fn hashmap_filenames_crc(root_dir: &str, mut filenames: HashMap<String, Stri
         .follow_links(false)
         .into_iter()
         .filter_map(Result::ok)
-        .filter(|e| !e.file_type().is_dir() && !e.file_type().is_symlink() && is_readable(e.path().as_os_str()).unwrap())
+        .filter(|e| !e.file_type().is_dir())
     {
         file_count += 1;
         let mut count: usize = 0;
@@ -28,29 +27,38 @@ pub fn hashmap_filenames_crc(root_dir: &str, mut filenames: HashMap<String, Stri
 
         println!("{}", f_name);
 
-        let metadata = fs::metadata(&f_name).unwrap();
+        if entry.path().is_file() && !entry.path().is_symlink() && is_readable(entry.path()).unwrap() {
+            let metadata = fs::metadata(entry.path());
 
-        if metadata.len() > 0 && Path::new(&f_name).is_file() {
-            let f = File::open(f_name.as_str());
-
-            let status = match f {
+            let status = match metadata {
                 Ok(f) => Ok(f),
                 Err(e) => Err(e),
             };
 
             if status.is_ok() {
-                println!("Reading bytes");
-                for byte in status.unwrap().bytes() {
-                    if count < 65536 {
-                        buffer[count] = byte.unwrap();
-                        count += 1;
+                if status.ok().unwrap().len() > 0 {
+                    let f = File::open(entry.path());
+
+                    let status = match f {
+                        Ok(f) => Ok(f),
+                        Err(e) => Err(e),
+                    };
+
+                    if status.is_ok() {
+                        println!("Reading bytes");
+                        for byte in status.unwrap().bytes() {
+                            if count < 65536 {
+                                buffer[count] = byte.unwrap();
+                                count += 1;
+                            } else {
+                                break;
+                            }
+                        }
                     } else {
-                        break;
+                        eprintln!("Filepath {} Error {:#?}", f_name, status.err());
+                        buffer[0] = u8::from(0);
                     }
                 }
-            } else {
-                eprintln!("Filepath {} Error {:#?}", f_name, status.err());
-                buffer[0] = u8::from(0);
             }
         } else {
             buffer[0] = u8::from(0);
@@ -64,7 +72,7 @@ pub fn hashmap_filenames_crc(root_dir: &str, mut filenames: HashMap<String, Stri
             .entry(f_name.clone().replace(root_dir, ""))
             .or_insert(format!("{:X}", checksum));
 
-        println!("{:<10} {:>10} {}", file_count, &checksum, &f_name);
+        println!("{:<10} {:>10X} {}", file_count, &checksum, &f_name);
         println!();
     }
 
